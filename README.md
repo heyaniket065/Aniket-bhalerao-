@@ -24,3 +24,19 @@ The included GitHub Actions workflow deploys the site whenever the `work` branch
 5. Use the URL shown in the completed workflow. For a project repository it is normally `https://<username>.github.io/Aniket-bhalerao-/`.
 
 The app uses relative asset URLs, so it will load correctly from the repository subpath used by GitHub Pages.
+
+### Configure Kie.ai for a deployment
+
+The Settings drawer keeps changes in the browser only after the user selects **Save settings**. To provide deployment defaults, add the following script before `src/main.js` in the deployed HTML (or inject it from your hosting environment):
+
+```html
+<script>
+  window.__NEXORA_CONFIG__ = {
+    kieApiKey: 'your-deployment-key',
+    kieBaseUrl: 'https://api.kie.ai',
+    kieModel: 'gpt-4o-mini'
+  }
+</script>
+```
+
+When no key is configured, the composer returns a deterministic local preview, so the UI remains usable without network credentials.
