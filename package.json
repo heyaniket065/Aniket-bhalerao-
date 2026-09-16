@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "start": "python3 -m http.server 4173",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/lint.mjs",
+    "format": "node scripts/format.mjs",
+    "validate": "npm run lint && npm run format && npm run build"
   }
 }
