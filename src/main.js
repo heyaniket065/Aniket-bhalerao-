@@ -8,6 +8,33 @@ let messages = [
   { role: 'assistant', content: 'Absolutely. Let’s turn your launch into a clear, high-signal moment. Tell me who your ideal customer is and what makes the product different.' },
 ]
 
+// One catalog drives both the picker and the request sent to Kie.ai.  Add a model here
+// rather than adding provider-specific conditionals throughout the interface.
+const MODEL_CATALOG = [
+  { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', tasks: ['chat', 'coding', 'reasoning'], description: 'Fast, dependable workhorse' },
+  { id: 'o3', name: 'o3', provider: 'OpenAI', tasks: ['reasoning', 'coding'], description: 'Deep reasoning and planning' },
+  { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'Anthropic', tasks: ['chat', 'coding', 'reasoning'], description: 'Nuanced writing and code' },
+  { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'Anthropic', tasks: ['reasoning', 'coding'], description: 'Complex analysis' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google Gemini', tasks: ['chat', 'coding', 'reasoning'], description: 'Multimodal problem solving' },
+  { id: 'grok-3', name: 'Grok 3', provider: 'xAI', tasks: ['chat', 'reasoning'], description: 'Current, direct answers' },
+  { id: 'flux-1.1-pro', name: 'FLUX 1.1 Pro', provider: 'Image', tasks: ['image'], description: 'High-fidelity image generation', ratios: ['1:1', '4:5', '16:9'], resolutions: ['1024px', '1536px'] },
+  { id: 'imagen-3', name: 'Imagen 3', provider: 'Image', tasks: ['image'], description: 'Polished photorealism', ratios: ['1:1', '3:4', '16:9'], resolutions: ['1024px', '2048px'] },
+  { id: 'veo-3', name: 'Veo 3', provider: 'Video', tasks: ['video'], description: 'Cinematic video with sound', ratios: ['16:9', '9:16'], resolutions: ['720p', '1080p'] },
+  { id: 'kling-2.1', name: 'Kling 2.1', provider: 'Video', tasks: ['video'], description: 'Expressive motion', ratios: ['16:9', '9:16', '1:1'], resolutions: ['720p', '1080p'] }
+]
+
+const TASKS = {
+  chat: { label: 'Chat', icon: '◈', hint: 'General conversation' },
+  coding: { label: 'Code', icon: '</>', hint: 'Build and explain code' },
+  reasoning: { label: 'Reason', icon: '◌', hint: 'Think through a problem' },
+  image: { label: 'Image', icon: '▧', hint: 'Create an image' },
+  video: { label: 'Video', icon: '▷', hint: 'Create a video' }
+}
+
+let state = { task: 'chat', modelId: 'gpt-4.1', aspectRatio: '16:9', resolution: '1024px', enhancedPrompt: '' }
+const model = () => MODEL_CATALOG.find(item => item.id === state.modelId)
+const supportedModels = task => MODEL_CATALOG.filter(item => item.tasks.includes(task))
+
 app.innerHTML = `
   <main class="shell">
     <aside class="sidebar"><a class="brand" href="#"><span class="brand-mark">✦</span><span>Nexora</span></a><button class="new-chat">＋ New conversation <kbd>⌘ K</kbd></button><nav><p class="nav-label">WORKSPACE</p><a class="nav-item active" href="#chat">◈ Chat</a><a class="nav-item" href="#library">◫ Library</a><p class="nav-label">RECENT</p><a class="recent selected" href="#"> <span class="dot pink"></span>Product launch strategy</a><a class="recent" href="#"><span class="dot blue"></span>Q3 growth insights</a></nav><div class="sidebar-bottom"><button class="settings-trigger">⚙ Settings <span class="connection-dot"></span></button><div class="profile"><div class="avatar">AR</div><div><strong>Alex Rivera</strong><small>Personal workspace</small></div></div></div></aside>
