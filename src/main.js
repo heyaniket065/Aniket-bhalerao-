@@ -1,18 +1,104 @@
 import './style.css'
-import { setupAttachments } from './attachments.js'
-import { setupChat } from './chat.js'
-import { setupModelSelector } from './model-selector.js'
-import { setupSettings } from './settings.js'
-import { createAppState } from './state.js'
-import { renderApp } from './ui/render.js'
-import { setupVoiceMode } from './voice-mode.js'
+import { KieClient } from './services/kie-client.js'
+import { hasConfiguredKey, loadSettings, saveSettings } from './state/settings.js'
 
 const app = document.querySelector('#app')
-const state = createAppState()
+let settings = loadSettings()
+let messages = [
+  { role: 'assistant', content: 'Absolutely. Let’s turn your launch into a clear, high-signal moment. Tell me who your ideal customer is and what makes the product different.' },
+]
 
-renderApp(app)
-setupChat(app, state)
-setupModelSelector(app, state)
-setupSettings(app, state)
-setupAttachments(app, state)
-setupVoiceMode(app, state)
+// One catalog drives both the picker and the request sent to Kie.ai.  Add a model here
+// rather than adding provider-specific conditionals throughout the interface.
+const MODEL_CATALOG = [
+  { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', tasks: ['chat', 'coding', 'reasoning'], description: 'Fast, dependable workhorse' },
+  { id: 'o3', name: 'o3', provider: 'OpenAI', tasks: ['reasoning', 'coding'], description: 'Deep reasoning and planning' },
+  { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'Anthropic', tasks: ['chat', 'coding', 'reasoning'], description: 'Nuanced writing and code' },
+  { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'Anthropic', tasks: ['reasoning', 'coding'], description: 'Complex analysis' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google Gemini', tasks: ['chat', 'coding', 'reasoning'], description: 'Multimodal problem solving' },
+  { id: 'grok-3', name: 'Grok 3', provider: 'xAI', tasks: ['chat', 'reasoning'], description: 'Current, direct answers' },
+  { id: 'flux-1.1-pro', name: 'FLUX 1.1 Pro', provider: 'Image', tasks: ['image'], description: 'High-fidelity image generation', ratios: ['1:1', '4:5', '16:9'], resolutions: ['1024px', '1536px'] },
+  { id: 'imagen-3', name: 'Imagen 3', provider: 'Image', tasks: ['image'], description: 'Polished photorealism', ratios: ['1:1', '3:4', '16:9'], resolutions: ['1024px', '2048px'] },
+  { id: 'veo-3', name: 'Veo 3', provider: 'Video', tasks: ['video'], description: 'Cinematic video with sound', ratios: ['16:9', '9:16'], resolutions: ['720p', '1080p'] },
+  { id: 'kling-2.1', name: 'Kling 2.1', provider: 'Video', tasks: ['video'], description: 'Expressive motion', ratios: ['16:9', '9:16', '1:1'], resolutions: ['720p', '1080p'] }
+]
+
+const TASKS = {
+  chat: { label: 'Chat', icon: '◈', hint: 'General conversation' },
+  coding: { label: 'Code', icon: '</>', hint: 'Build and explain code' },
+  reasoning: { label: 'Reason', icon: '◌', hint: 'Think through a problem' },
+  image: { label: 'Image', icon: '▧', hint: 'Create an image' },
+  video: { label: 'Video', icon: '▷', hint: 'Create a video' }
+}
+
+let state = { task: 'chat', modelId: 'gpt-4.1', aspectRatio: '16:9', resolution: '1024px', enhancedPrompt: '' }
+const model = () => MODEL_CATALOG.find(item => item.id === state.modelId)
+const supportedModels = task => MODEL_CATALOG.filter(item => item.tasks.includes(task))
+
+app.innerHTML = `
+  <main class="shell">
+    <aside class="sidebar"><a class="brand" href="#"><span class="brand-mark">✦</span><span>Nexora</span></a><button class="new-chat">＋ New conversation <kbd>⌘ K</kbd></button><nav><p class="nav-label">WORKSPACE</p><a class="nav-item active" href="#chat">◈ Chat</a><a class="nav-item" href="#library">◫ Library</a><p class="nav-label">RECENT</p><a class="recent selected" href="#"> <span class="dot pink"></span>Product launch strategy</a><a class="recent" href="#"><span class="dot blue"></span>Q3 growth insights</a></nav><div class="sidebar-bottom"><button class="settings-trigger">⚙ Settings <span class="connection-dot"></span></button><div class="profile"><div class="avatar">AR</div><div><strong>Alex Rivera</strong><small>Personal workspace</small></div></div></div></aside>
+    <section class="workspace"><header class="topbar"><button class="crumb">Personal ⌄</button><div class="top-actions"><button class="settings-trigger share">⚙ Settings</button><button class="circle-button">AR</button></div></header><section class="chat" id="chat"><div class="conversation-head"><div><p class="eyebrow">TODAY, 10:42 AM</p><h1>Product launch strategy</h1></div><button class="more">•••</button></div><div class="messages" aria-live="polite"></div><div class="composer-wrap"><div class="quick-prompts"><button>Define my audience</button><button>Build launch timeline</button><button>Find positioning</button></div><form class="composer"><button type="button" class="add" aria-label="Add context">＋</button><textarea rows="1" placeholder="Ask anything..." aria-label="Message"></textarea><button type="button" class="model-button"></button><button type="submit" class="send" aria-label="Send message">↑</button></form><p class="disclaimer">Responses may be generated by Kie.ai. Check important info.</p></div></section></section>
+    <aside class="context-panel"><div class="context-title"><h2>Workspace</h2></div><div class="project-card"><div class="project-icon">✦</div><div><strong>Product launch</strong><small>Strategy & planning</small></div></div><div class="panel-section"><h3>Project context</h3><p>Launch brief<br><small>Added today</small></p><p>Audience notes<br><small>Added today</small></p></div><div class="panel-tip">✦ <p><strong>Pro tip</strong> Add context to get more tailored responses.</p></div></aside>
+  </main>
+  <div class="drawer-backdrop" hidden></div>
+  <aside class="settings-drawer" aria-label="Settings" aria-hidden="true"><header><div><p class="eyebrow">CONNECTION</p><h2>Settings</h2></div><button class="close-settings" aria-label="Close settings">×</button></header><form class="settings-form"><section><h3>Kie.ai API</h3><label>API key <input name="apiKey" type="password" autocomplete="off" placeholder="Enter your Kie.ai API key"></label><label>Base URL <input name="baseUrl" type="url" placeholder="https://api.kie.ai"></label><p class="help">For deployments, set <code>window.__NEXORA_CONFIG__</code> before the app script. Environment values are not stored by this app.</p><div class="validation" data-state="idle">Not validated</div><button class="validate" type="button">Validate connection</button></section><section><h3>Default task model</h3><label>Model <input name="model" type="text" placeholder="gpt-4o-mini"></label></section><section><h3>Experience</h3><label class="toggle"><span>Stream responses <small>Render text as it arrives.</small></span><input name="stream" type="checkbox"><i></i></label><label class="toggle"><span>Token metrics <small>Show usage when available.</small></span><input name="tokenMetrics" type="checkbox"><i></i></label><label class="toggle"><span>Markdown <small>Format headings, lists, and emphasis.</small></span><input name="markdown" type="checkbox"><i></i></label></section><footer><span class="save-note">Changes are saved only when you select Save.</span><button class="save-settings" type="submit">Save settings</button></footer></form></aside>`
+
+const messagesEl = document.querySelector('.messages')
+const form = document.querySelector('.composer')
+const textarea = form.querySelector('textarea')
+const drawer = document.querySelector('.settings-drawer')
+const backdrop = document.querySelector('.drawer-backdrop')
+const settingsForm = document.querySelector('.settings-form')
+
+function escapeHtml(value) { return value.replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])) }
+function renderMarkdown(value) {
+  const safe = escapeHtml(value)
+  return safe.replace(/^### (.*)$/gm, '<h3>$1</h3>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/^\d+\. (.*)$/gm, '<li>$1</li>').replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>')
+}
+function renderMessages() {
+  messagesEl.innerHTML = messages.map(message => {
+    const content = settings.markdown && message.role === 'assistant' ? renderMarkdown(message.content) : escapeHtml(message.content).replace(/\n/g, '<br>')
+    const usage = settings.tokenMetrics && message.usage ? `<small class="usage">${message.usage.total_tokens || message.usage.completion_tokens || 0} tokens</small>` : ''
+    return `<div class="message ${message.role === 'user' ? 'user-message' : 'assistant-message'}">${message.role === 'assistant' ? '<div class="ai-avatar">✦</div><div class="message-content"><div class="ai-name">Nexora <span>•</span> <small>' + (message.mock ? 'Local preview' : settings.model) + '</small></div>' : ''}<div class="message-body">${content}</div>${usage}${message.loading ? '<div class="loading"><i></i><i></i><i></i> Thinking</div>' : ''}${message.error ? '<div class="request-error">' + escapeHtml(message.error) + '</div>' : ''}${message.role === 'assistant' ? '</div>' : '<div class="avatar tiny">AR</div>'}</div>`
+  }).join('')
+  messagesEl.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+}
+function syncSettingsForm() {
+  for (const [key, value] of Object.entries(settings)) {
+    const input = settingsForm.elements.namedItem(key)
+    if (input) input.type === 'checkbox' ? input.checked = value : input.value = value
+  }
+  document.querySelector('.model-button').textContent = `${settings.model} ⌄`
+  document.querySelectorAll('.connection-dot').forEach(dot => dot.classList.toggle('connected', hasConfiguredKey(settings)))
+}
+function setDrawer(open) { drawer.classList.toggle('open', open); backdrop.hidden = !open; drawer.setAttribute('aria-hidden', String(!open)); if (open) syncSettingsForm() }
+
+async function sendMessage(content) {
+  messages.push({ role: 'user', content }, { role: 'assistant', content: '', loading: true })
+  renderMessages()
+  const reply = messages.at(-1)
+  try {
+    const client = new KieClient(settings)
+    for await (const part of client.complete(messages.slice(0, -1).map(({ role, content: body }) => ({ role, content: body })))) {
+      reply.loading = false; reply.content += part.text || ''; reply.mock ||= part.mock; reply.usage = part.usage || reply.usage; renderMessages()
+    }
+    reply.loading = false
+  } catch (error) { reply.loading = false; reply.error = error.message || 'Unable to complete this request.' }
+  renderMessages()
+}
+
+form.addEventListener('submit', event => { event.preventDefault(); const content = textarea.value.trim(); if (!content) return; textarea.value = ''; sendMessage(content) })
+document.querySelector('.quick-prompts').addEventListener('click', event => { if (event.target.tagName === 'BUTTON') { textarea.value = event.target.textContent; textarea.focus() } })
+document.querySelectorAll('.settings-trigger').forEach(button => button.addEventListener('click', () => setDrawer(true)))
+document.querySelector('.close-settings').addEventListener('click', () => setDrawer(false))
+backdrop.addEventListener('click', () => setDrawer(false))
+settingsForm.querySelector('.validate').addEventListener('click', async () => {
+  const draft = Object.fromEntries(new FormData(settingsForm)); draft.stream = settingsForm.elements.stream.checked; draft.tokenMetrics = settingsForm.elements.tokenMetrics.checked; draft.markdown = settingsForm.elements.markdown.checked
+  const indicator = settingsForm.querySelector('.validation'); indicator.dataset.state = 'pending'; indicator.textContent = 'Validating…'
+  const result = await new KieClient(draft).validate(); indicator.dataset.state = result.ok ? 'valid' : 'invalid'; indicator.textContent = result.message
+})
+settingsForm.addEventListener('submit', event => { event.preventDefault(); const draft = Object.fromEntries(new FormData(settingsForm)); settings = saveSettings({ ...draft, stream: settingsForm.elements.stream.checked, tokenMetrics: settingsForm.elements.tokenMetrics.checked, markdown: settingsForm.elements.markdown.checked }); syncSettingsForm(); renderMessages(); setDrawer(false) })
+
+syncSettingsForm()
+renderMessages()

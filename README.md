@@ -54,4 +54,20 @@ The included GitHub Actions workflow deploys the site whenever the `work` branch
 4. Wait for **Deploy GitHub Pages** to complete in the **Actions** tab.
 5. Open the URL reported by that workflow. For a project repository it is normally `https://<username>.github.io/Aniket-bhalerao-/`.
 
-The page loads scripts with relative URLs, so it works from a GitHub Pages project subpath. GitHub Pages serves a static build only: it cannot safely host a Kie.ai secret or act as the protected API proxy described above. Deploy the proxy separately and configure its public endpoint at build or page-template time.
+The app uses relative asset URLs, so it will load correctly from the repository subpath used by GitHub Pages.
+
+### Configure Kie.ai for a deployment
+
+The Settings drawer keeps changes in the browser only after the user selects **Save settings**. To provide deployment defaults, add the following script before `src/main.js` in the deployed HTML (or inject it from your hosting environment):
+
+```html
+<script>
+  window.__NEXORA_CONFIG__ = {
+    kieApiKey: 'your-deployment-key',
+    kieBaseUrl: 'https://api.kie.ai',
+    kieModel: 'gpt-4o-mini'
+  }
+</script>
+```
+
+When no key is configured, the composer returns a deterministic local preview, so the UI remains usable without network credentials.
